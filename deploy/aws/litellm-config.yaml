@@ -1,0 +1,40 @@
+model_list:
+  # Stable aliases used by Cowork. Change the Bedrock model IDs here without
+  # rebuilding or exposing provider details to browsers.
+  - model_name: planning
+    litellm_params:
+      model: bedrock/converse/us.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: os.environ/AWS_REGION
+  - model_name: coding
+    litellm_params:
+      model: bedrock/converse/us.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: os.environ/AWS_REGION
+
+  # Optional aliases. Select these with COWORK_MANAGED_PLANNING_MODEL or
+  # COWORK_MANAGED_CODING_MODEL after confirming availability in your Region.
+  - model_name: glm-4.7
+    litellm_params:
+      model: bedrock/zai.glm-4.7
+      aws_region_name: os.environ/AWS_REGION
+  - model_name: nova-pro
+    litellm_params:
+      model: bedrock/converse/us.amazon.nova-pro-v1:0
+      aws_region_name: os.environ/AWS_REGION
+
+router_settings:
+  fallbacks:
+    - planning: [nova-pro]
+    - coding: [nova-pro]
+  num_retries: 2
+  retry_after: 1
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  # PostgreSQL is required for this budget to be enforced and for spend logs.
+  max_budget: os.environ/LITELLM_MAX_MONTHLY_BUDGET
+  budget_duration: 30d
+  drop_params: true
+  set_verbose: false
+

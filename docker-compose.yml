@@ -1,0 +1,73 @@
+# Full local stack in one command.
+#
+#   cp .env.example .env      # fill in AWS credentials + a gateway key
+#   docker compose up -d --build
+#   open http://localhost:3000
+#
+#   browser ─► web (nginx :3000) ─► api (cowork-server) ─► model-gateway (LiteLLM) ─► AWS Bedrock
+#
+# Only the UI is published, and only on localhost. The API has no
+# authentication of its own, so it must not be reachable from the network;
+# for a deployment other people can reach, use deploy/aws/ (OIDC in front).
+# See docker/README.md.
+
+services:
+  model-gateway:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    volumes:
+      # Same routing policy as `npm run dev:web` (deploy/local/ROUTING.md).
+      - ./deploy/local/litellm-config.yaml:/app/config.yaml:ro
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID in .env}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in .env}
+      AWS_REGION: ${AWS_REGION:-eu-central-1}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set LITELLM_MASTER_KEY in .env}
+    # Not published: the api reaches it over the compose network. It holds the
+    # AWS credentials, so nothing else should.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      DATABASE_URI: "sqlite:////home/cowork/.cowork/cowork.db"
+      # Managed mode: every model call goes through the gateway, which is the
+      # only component holding AWS credentials. The api just gets its key.
+      COWORK_MANAGED_ENABLED: "true"
+      COWORK_MANAGED_BASE_URL: "http://model-gateway:4000/v1"
+      COWORK_MANAGED_API_KEY: ${LITELLM_MASTER_KEY}
+      COWORK_MANAGED_PLANNING_MODEL: "planning"
+      COWORK_MANAGED_CODING_MODEL: "coding"
+      COWORK_ENABLED_CONNECTORS: ${COWORK_ENABLED_CONNECTORS:-slack,postgres,clickhouse,clickup,notion,redis}
+      # Optional. Unset, the connector-vault key is generated into the volume
+      # (~/.cowork/.vault.key); set it to keep the key out of the volume.
+      ANTON_VAULT_KEY: ${ANTON_VAULT_KEY:-}
+    volumes:
+      # Database, encrypted connector vault + its key, projects, Hermes state.
+      - cowork-data:/home/cowork/.cowork
+    depends_on:
+      model-gateway:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  cowork-data:

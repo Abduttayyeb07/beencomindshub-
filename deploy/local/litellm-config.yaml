@@ -1,0 +1,247 @@
+# Local development gateway — Bedrock via LiteLLM, with a routing policy.
+#
+# Cowork sends a ROLE ALIAS (`planning` / `coding`), never a concrete model.
+# Each alias is a model group holding several peer deployments, and the router
+# picks between them per request. Credentials stay here; the browser and the
+# database only ever see the alias.
+#
+# The policy is three layers, cheapest signal first (see deploy/local/ROUTING.md):
+#
+#   1. CAPABILITY — enable_pre_call_checks filters deployments whose context
+#      window cannot hold the request; context_window_fallbacks escalates to a
+#      larger model instead of failing. Costs ~0ms, no model call.
+#   2. QUALITY TIER — the alias itself. `planning` holds frontier models for the
+#      user-facing reasoning loop; `coding` holds cheaper peers for skill
+#      execution. Tiers are quality-HOMOGENEOUS on purpose: cost routing always
+#      picks the cheapest member, so mixing Opus with Haiku in one group would
+#      silently downgrade every request.
+#   3. COST / LATENCY — within a tier, the router breaks the tie. Cost where
+#      members differ in price; latency where they are priced the same, since
+#      then the only thing left to optimise is speed.
+#
+# Per-token prices are set explicitly below. LiteLLM's built-in cost map does
+# not cover the open-weight Bedrock models, and it silently assumes $1/token for
+# anything unlisted — which would make cost-based routing pick at random.
+# Prices are USD per token (list price / 1e6), eu-central-1, Sept 2026.
+
+model_list:
+  # ─── planning ─── user-facing reasoning loop: tool calls, vision, artifacts.
+  # Sonnet 4.5 is the default pick (cheaper); Opus 4.5 is the peer it fails over
+  # to. Both are vision- and tool-capable, so either can serve any request here.
+  - model_name: planning
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000003      # $3.00 / 1M
+      output_cost_per_token: 0.000015     # $15.00 / 1M
+    model_info:
+      max_input_tokens: 200000
+
+  - model_name: planning
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-opus-4-5-20251101-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000005      # $5.00 / 1M
+      output_cost_per_token: 0.000025     # $25.00 / 1M
+    model_info:
+      max_input_tokens: 200000
+
+  # ─── coding ─── skill/code execution. Cheaper peers, still tool-capable.
+  - model_name: coding
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000001      # $1.00 / 1M
+      output_cost_per_token: 0.000005     # $5.00 / 1M
+    model_info:
+      max_input_tokens: 200000
+
+  - model_name: coding
+    litellm_params:
+      model: bedrock/converse/eu.amazon.nova-pro-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.0000008     # $0.80 / 1M
+      output_cost_per_token: 0.0000032    # $3.20 / 1M
+    model_info:
+      max_input_tokens: 300000
+
+  # ─── bulk ─── high-volume, low-stakes work. The open-weight models are all
+  # priced identically ($0.15/$0.60), so cost cannot discriminate between them
+  # and latency is what is left to optimise.
+  - model_name: bulk
+    litellm_params:
+      model: bedrock/converse/openai.gpt-oss-120b-1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015    # $0.15 / 1M
+      output_cost_per_token: 0.0000006    # $0.60 / 1M
+    model_info:
+      max_input_tokens: 128000
+
+  - model_name: bulk
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-32b-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+    model_info:
+      max_input_tokens: 128000
+
+  - model_name: bulk
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-coder-30b-a3b-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+    model_info:
+      max_input_tokens: 128000
+
+  # ─── Pinned aliases ───────────────────────────────────────────────────────
+  # Single-deployment entries, so the model picker can still force one exact
+  # model and bypass the policy entirely. Routing only applies to the role
+  # aliases above; these are the escape hatch.
+  - model_name: claude-opus-4-5
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-opus-4-5-20251101-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000005
+      output_cost_per_token: 0.000025
+
+  - model_name: claude-sonnet-4-5
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000003
+      output_cost_per_token: 0.000015
+
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000005
+
+  - model_name: nova-pro
+    litellm_params:
+      model: bedrock/converse/eu.amazon.nova-pro-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.0000008
+      output_cost_per_token: 0.0000032
+
+  - model_name: gpt-oss-120b
+    litellm_params:
+      model: bedrock/converse/openai.gpt-oss-120b-1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+
+  - model_name: gpt-oss-20b
+    litellm_params:
+      model: bedrock/converse/openai.gpt-oss-20b-1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000007
+      output_cost_per_token: 0.0000003
+
+  - model_name: qwen3-235b
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-235b-a22b-2507-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000022
+      output_cost_per_token: 0.00000088
+
+  - model_name: qwen3-coder-30b
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-coder-30b-a3b-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+
+  - model_name: qwen3-32b
+    litellm_params:
+      model: bedrock/converse/qwen.qwen3-32b-v1:0
+      aws_region_name: os.environ/AWS_REGION
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+
+  - model_name: glm-4.7-flash
+    litellm_params:
+      model: bedrock/converse/zai.glm-4.7-flash
+      aws_region_name: os.environ/AWS_REGION
+
+  - model_name: devstral-2-123b
+    litellm_params:
+      model: bedrock/converse/mistral.devstral-2-123b
+      aws_region_name: os.environ/AWS_REGION
+
+  # Compatibility aliases. Anton hardcodes upstream Anthropic names as defaults
+  # (anton/config/settings.py, cowork app_settings.py); a subprocess that builds
+  # its settings fresh can emit one instead of the alias the harness chose.
+  # Map them onto the nearest model this account can invoke.
+  - model_name: claude-haiku-4-5-20251001
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: os.environ/AWS_REGION
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: os.environ/AWS_REGION
+  - model_name: claude-opus-4-7
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-opus-4-5-20251101-v1:0
+      aws_region_name: os.environ/AWS_REGION
+  - model_name: claude-opus-4-6
+    litellm_params:
+      model: bedrock/converse/eu.anthropic.claude-opus-4-5-20251101-v1:0
+      aws_region_name: os.environ/AWS_REGION
+
+router_settings:
+  # Layer 3 default: among peers in a group, prefer the cheaper one. Applies to
+  # `planning` (Sonnet over Opus) and `coding` (Nova Pro over Haiku).
+  routing_strategy: cost-based-routing
+
+  # `bulk` members are priced identically, so cost is a coin flip there and
+  # speed is the only remaining axis. ttl is the window of observed latency the
+  # router averages over.
+  routing_groups:
+    - group_name: bulk-latency
+      models: [bulk]
+      routing_strategy: latency-based-routing
+      routing_strategy_args:
+        ttl: 300
+        lowest_latency_buffer: 0.3
+
+  # Layer 1: drop deployments that cannot fit the request, before spending a
+  # call to find out. Escalate rather than fail when nothing in the tier fits.
+  enable_pre_call_checks: true
+  context_window_fallbacks:
+    - bulk: [coding, planning]
+    - coding: [planning]
+
+  # Cross-tier failover for hard errors (5xx, throttling). Distinct from the
+  # context-window path above, which is a capacity decision, not an outage.
+  fallbacks:
+    - planning: [claude-opus-4-5, nova-pro]
+    - coding: [claude-haiku-4-5, nova-pro]
+    - bulk: [gpt-oss-20b, nova-pro]
+
+  # Circuit breaker: stop sending to a deployment that keeps failing instead of
+  # letting every request time out against it.
+  allowed_fails: 3
+  cooldown_time: 30
+  num_retries: 2
+  retry_after: 1
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  # Some models reject OpenAI params Cowork sends (certain sampling fields);
+  # drop them rather than failing the request.
+  drop_params: true
+
+  # Anton replays conversation history containing earlier tool calls even on
+  # turns where it sends no `tools=`. Bedrock rejects that combination outright
+  # (UnsupportedParamsError); modify_params inserts a placeholder tool so the
+  # history stays valid.
+  modify_params: true
+
+  set_verbose: false

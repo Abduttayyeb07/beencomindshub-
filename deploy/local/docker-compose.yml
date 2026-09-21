@@ -1,0 +1,27 @@
+# Local Bedrock gateway for development.
+#
+#   docker compose -f deploy/local/docker-compose.yml up -d
+#
+# Bound to 127.0.0.1 only — this gateway holds AWS credentials and must not
+# be reachable from the network. For a real deployment use deploy/aws/,
+# which fronts the gateway with OIDC and uses an IAM task role instead of
+# static access keys.
+
+services:
+  model-gateway:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: cowork-model-gateway
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    ports:
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ./litellm-config.yaml:/app/config.yaml:ro
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness').status==200 else 1)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

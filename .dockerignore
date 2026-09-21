@@ -1,0 +1,33 @@
+# Build context for docker/api.Dockerfile and docker/web.Dockerfile.
+# Both only COPY backend/ and frontend/, but Docker still ships the whole
+# context to the daemon — so size and secrets both matter here.
+
+# Secrets. backend/core_api/.env holds the gateway key and deploy/local/.env
+# holds AWS credentials; without these lines a COPY of backend/ would bake them
+# into the image layers.
+**/.env
+**/.env.local
+**/*.env
+**/.vault.key
+**/data-vault/
+
+# Dependencies and build output, rebuilt inside the image.
+**/node_modules/
+**/.venv/
+**/dist/
+**/release/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Not needed to build either image. These unanchored patterns match the
+# context root only, so the package READMEs the Python builds require
+# (backend/*/README.md) are still included.
+.git/
+**/.github/
+docs/
+assets/
+*.pdf
+*.md
