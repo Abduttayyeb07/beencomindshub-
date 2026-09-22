@@ -1,149 +1,136 @@
-<a name="readme-top"></a>
+# Cowork
 
-<div align="center">
+An agent workspace for knowledge work and software development — chat with
+agents that can run code, read documents, query your databases, build
+artifacts, and run on a schedule. Every model call goes to **AWS Bedrock** in
+your own account.
 
-<a href="https://mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme">
-  <img src="assets/mindshub-banner.svg" alt="MindsHub — The best intelligence should be open." width="100%" />
-</a>
+```
+browser ─► web UI ─► api (cowork-server) ─► agent (Anton / Hermes) ─► model gateway (LiteLLM) ─► AWS Bedrock
+```
 
-**MindsHub is an agent workspace for completing knowledge work and developing software, with open-source agent harnesses and a choice of models.**
+## Quick start (Docker)
 
-[![Release](https://img.shields.io/github/v/release/mindsdb/minds?logo=github&label=release)](https://github.com/mindsdb/minds/releases)
-[![Stars](https://img.shields.io/github/stars/mindsdb/minds?logo=github)](https://github.com/mindsdb/minds/stargazers)
-[![License: MIT](https://img.shields.io/github/license/mindsdb/minds)](#-license)
-[![Python 3.10–3.13](https://img.shields.io/badge/python-3.10%20–%203.13-brightgreen.svg)](https://www.python.org/downloads/)
+The whole stack in one command. Needs Docker and an AWS account with Bedrock
+model access.
 
-[Website](https://mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme) ·
-[Docs](https://docs.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme) ·
-[Web app](https://console.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme) ·
-[Pricing](https://mindshub.ai/pricing?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme) ·
-[Discord](https://mindshub.ai/discord)
+```bash
+cp .env.example .env          # fill in AWS credentials and LITELLM_MASTER_KEY
+docker compose up -d --build
+```
 
-<p align="center">
-  <sub>Read this in: <a href="README.zh.md">中文</a> · <a href="README.es.md">Español</a> · <a href="README.pt.md">Português</a> · <a href="README.hi.md">हिन्दी</a></sub>
-</p>
+Open **http://localhost:3000**. The first build takes a few minutes.
 
-</div>
-
-<p align="center">
-  <img width="640" height="480" alt="MindsHub agent workspace" src="https://github.com/user-attachments/assets/048761b8-aa77-4506-9c4d-32e2fdecbb60" />
-</p>
-
-MindsHub gives you the freedom to choose among models and providers instead of being locked into one ecosystem. Use its agent workspace for research, analysis, content creation, and software development. It is open source and can run on your machine, in your VPC, or through the hosted app.
-
-This repository is the **platform superproject**: it pulls together the desktop/web app, the agent backend, and the data engine so you can build and run the whole stack from source.
-
-For building intelligence into agents and products through one API, see **[MindsHub Inference](https://mindshub.ai/unified-inference)**. It provides a choice of models and providers with one set of controls and one bill.
-
-## Get started
-
-Pick whichever fits:
-
-- **Web — nothing to install.** Open **[console.mindshub.ai](https://console.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme)** and sign in.
-- **macOS.** [Download the desktop app](https://downloads.mindsdb.com/mindshub-cowork/mac/mindshub-cowork-latest.pkg) (`.pkg`).
-- **Windows.** [Download the desktop app](https://downloads.mindsdb.com/mindshub-cowork/windows/mindshub-cowork-latest.exe) (`.exe`).
-- **Linux.** [Build from source](#build-from-source).
-
-Free to start. Pro adds all frontier models and private artifacts — see [pricing](https://mindshub.ai/pricing?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme).
-
-## What you can do
-
-For every knowledge worker — creators, strategists, and operators:
-
-- **Automate** repetitive, multi-step work that involves reading and writing: reports, monitoring, recurring workflows, and scheduled operations.
-- **Build** internal AI tools and artifacts — apps, dashboards, decks, docs, analyses — without engineering, and publish them to a live URL to share with your team.
+Day-to-day commands, configuration, data and troubleshooting:
+[docker/README.md](docker/README.md).
 
 ## What's inside
 
-- **Connected data.** A secure vault links systems like BigQuery, Postgres, Gmail, Drive, HubSpot, Notion, and Linear. Credentials stay scoped per connection — agents never see raw keys.
-- **Model Router.** Switch between frontier models (Claude, GPT, Gemini) and open models (DeepSeek, Qwen, Kimi) without wiring up a key for each provider.
-- **Open agents.** Run interchangeable open-source harnesses — Anton (default) and Hermes — swappable from a dropdown.
-- **Artifacts.** Turn agent output into documents, dashboards, apps, and code, and publish to a live URL.
-- **Memory, skills & scheduling.** Cross-session memory, a reusable skill library, and tasks that run on a schedule.
+- **Agents** — two interchangeable harnesses, Anton (default) and Hermes,
+  switchable in Settings. Both run multi-step tool use, including a Python
+  scratchpad for code, file and document work.
+- **Model routing** — the agent asks for a role (`planning`, `coding`), and the
+  gateway picks the Bedrock model by capability, cost and latency, with
+  failover. Any single model can also be pinned in Settings. See
+  [deploy/local/ROUTING.md](deploy/local/ROUTING.md).
+- **Connectors** — Postgres, ClickHouse, Redis, Slack, Notion and ClickUp,
+  added under *Connect Apps and Data*. Credentials are encrypted at rest and
+  reach the agent only as environment variables, never in its prompt.
+- **Documents** — attach PDFs and other files, including scanned documents,
+  which are read through the model's vision.
+- **Scheduling** — run a prompt once, hourly, daily or weekly, with a recorded
+  history of every run.
+- **Artifacts and memory** — agent output saved as documents, dashboards and
+  apps, plus memory that carries across conversations.
 
-## Build from source
+## Repository layout
 
-**1. Clone the repository**
-
-```bash
-git clone --recurse-submodules https://github.com/mindsdb/minds.git
-cd minds
-```
-
-**2. Install dependencies**
-
-```bash
-make setup
-```
-
-**3. Run**
-
-| Mode | Command |
+| Path | What it is |
 |---|---|
-| Desktop app (Electron) with hot reload | `make dev` or `make watch` |
-| Web app in browser with hot reload | `make dev-web` |
-| Production build | `make build` |
-| Package for macOS | `make dist-mac` |
-| Package for Windows | `make dist-win` |
-| Build macOS `.app` from local uncommitted source | `make pack-local` |
-| Wipe all local installs + data (fresh start) | `make flush` |
+| `frontend/` | Web UI and Electron desktop app (React, Vite) |
+| `backend/core_api/` | `cowork-server` — the FastAPI backend: API, scheduler, connectors, harness integration |
+| `backend/core_agent/` | `anton` — the agent: reasoning loop, tools, scratchpad, credential vault |
+| `backend/data-vault/` | Data-integration engine used by connectors |
+| `deploy/local/` | Bedrock model gateway for local use, and its routing policy |
+| `deploy/aws/` | Production deployment on AWS (OIDC login, IAM role, budget limits) |
+| `docker/` | Dockerfiles and nginx config for the one-command stack |
 
-> **Fresh start:** `make flush` removes the local runtime (the `cowork-server` uv tool and the `backend/*/.venv`s) and deletes app state in `~/.anton` (provider keys) and `~/.cowork` (database, hermes, projects). Use it to test the from-scratch install flow or recover from a broken install. It prompts for confirmation — pass `FORCE=1` to skip. The next `make setup` or app launch reinstalls everything. ⚠️ This deletes your conversations and saved keys.
+`backend/core_api` depends on `backend/core_agent` by local path, so changes to
+the agent take effect without a release.
 
-### Working on feature branches (submodules)
+## Local development
 
-This repo is a superproject that pins each module (`frontend`, `backend/core_api`, `backend/core_agent`, `backend/data-vault`) to a commit. To work on module branches without polluting `git status` or fighting over pins:
+For working on the code with hot reload. Needs Node 22,
+[uv](https://docs.astral.sh/uv/), and Docker (for the model gateway).
 
-**1. Pick your branches** in a gitignored `dev.env` (copy the template):
+**1. Start the model gateway**
 
 ```bash
-cp dev.env.example dev.env      # then set REF=feat/my-thing (or per-module API_REF=…)
+cp deploy/local/.env.example deploy/local/.env     # AWS credentials + LITELLM_MASTER_KEY
+docker compose -f deploy/local/docker-compose.yml up -d
 ```
 
-**2. `make` follows it** — one knob, both run paths:
+**2. Point the backend at it**
 
-| Command | What it does |
+```bash
+cp backend/core_api/.env.example backend/core_api/.env
+# set COWORK_MANAGED_API_KEY to the same value as LITELLM_MASTER_KEY
+```
+
+**3. Skip the upstream sign-in in the dev UI**
+
+```bash
+echo "VITE_AUTH_MODE=none" > frontend/src/renderer/.env.local
+```
+
+**4. Run**
+
+```bash
+cd frontend
+npm install
+npm run dev:web
+```
+
+Open **http://localhost:5173**. `dev:web` starts the backend itself and
+reloads on changes. This keeps its state in `~/.cowork` on your machine,
+separate from the Docker stack's volume.
+
+### Tests
+
+```bash
+cd backend/core_api  && uv run --with pytest --with pytest-asyncio pytest tests
+cd backend/core_agent && uv run --with pytest --with pytest-asyncio pytest tests
+```
+
+On Windows, add `--basetemp` pointing at a writable directory if pytest can't
+write to the default temp folder. Two permission tests in `core_agent` check
+POSIX file modes and fail on Windows only.
+
+## Security
+
+**The API has no authentication of its own.** Anyone who can reach it can use
+the agents and every saved connector credential. The Docker stack publishes the
+UI on `localhost` only and doesn't publish the API or gateway at all — keep it
+that way.
+
+For a deployment other people can reach, use [deploy/aws/](deploy/aws/), which
+puts an OIDC login in front and gives the gateway an IAM role instead of static
+keys.
+
+Never commit `.env` files: they hold live AWS credentials and the gateway key,
+and are gitignored.
+
+## License
+
+This repository combines components under different licenses:
+
+| Component | License |
 |---|---|
-| `make use` | check out your `dev.env` refs across all submodules |
-| `make dev` / `make watch` | run the Electron app with live reload against local source |
-| `make dev-web` | run the web SPA with live reload against local source |
-| `make server` + `make app` | (re)install the desktop server from the configured branch, then launch |
-| `make server-local` + `make app-local` | install the desktop server from **local uncommitted source**, then launch |
-| `make pack-local` | build the macOS `.app` from local uncommitted source (no push needed) |
-| `make refs` | show which refs the next run will use |
-| `make baseline` | reset submodules to the pinned commits |
-| `make pin` | record the current submodule commits as the superproject's pins (one deliberate commit) |
+| `frontend/` | AGPL-3.0 |
+| `backend/core_api/` | Proprietary — see [backend/core_api/LICENSE](backend/core_api/LICENSE) |
+| `backend/core_agent/` | MIT |
+| `backend/data-vault/` | See [backend/data-vault/LICENSE](backend/data-vault/LICENSE) |
+| Everything else | MIT — see [LICENSE](LICENSE) |
 
-Submodules are configured with `ignore = all`, so your branch work never shows up as superproject changes — the parent `git status` stays clean. Pins move **only** via `make pin`. See [`CLAUDE.md`](CLAUDE.md) for the full workflow.
-
-## Deploy anywhere
-
-MindsHub is built for flexible deployment — **cloud, VPC, on-prem, air-gapped, and hybrid** infrastructure — so you keep full control over your infrastructure, models, permissions, and data.
-
-## Help & support
-
-- **Ask a question** — join the [Discord community](https://mindshub.ai/discord).
-- **Report a bug** — open a [GitHub issue](https://github.com/mindsdb/minds/issues) with reproduction steps.
-- **Read the docs** — guides, setup, and the API at [docs.mindshub.ai](https://docs.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme).
-- **Enterprise SLAs or custom deployments** — [contact the team](https://mindshub.ai/contact?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme).
-
-## 🤝 Contribute
-
-MindsHub is open source and contributions are welcome — code, integrations, docs, bug reports, and feature ideas. Read the [docs](https://docs.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme) to get set up, browse [open issues](https://github.com/mindsdb/minds/issues), and say hi on [Discord](https://mindshub.ai/discord).
-
-## 🔒 Security
-
-Found a security vulnerability? Please **don't** open a public issue. Report it privately through our [security policy](https://github.com/mindsdb/minds/security).
-
-## 📚 Resources
-
-- [Documentation](https://docs.mindshub.ai/?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme)
-- [Blog](https://mindshub.ai/blog?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme)
-- [Brand guidelines & press kit](https://mindshub.ai/press-kit?utm_source=github&utm_medium=repo-readme&utm_campaign=minds-readme)
-- [Discord community](https://mindshub.ai/discord)
-
-## 📄 License
-
-This repository is released under the [MIT License](LICENSE). Bundled components are governed by their own licenses — see each submodule's repository for details.
-
-<p align="right">(<a href="#readme-top">back to top</a>)</p>
+Based on the Cowork platform by MindsDB, Inc. Each component's license file is
+authoritative.
