@@ -59,10 +59,22 @@ This state is separate from a `npm run dev:web` setup, which keeps its own under
 
 ## Security
 
-**This setup has no login.** The UI is published on localhost only, and the API
-and gateway aren't published at all — keep it that way. The API has no
-authentication of its own, so anyone who can reach it can use it, along with
-every saved connector credential.
+**Set `COWORK_API_TOKEN` in `.env`.** The API has no user accounts; that token
+is what stops anything else on the machine from using it and reading every
+saved credential. The web container injects it into proxied requests, so the
+browser never holds it and you never type it. Generate one with:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Leaving it empty disables the check entirely.
+
+**There is still no user login.** The UI is published on localhost only, and the
+API and gateway aren't published at all — keep it that way.
+
+See [docs/SECURITY-AUDIT.md](../docs/SECURITY-AUDIT.md) for the full endpoint
+review.
 
 For a deployment other people can reach, use `deploy/aws/`, which puts an OIDC
 login in front and gives the gateway an IAM role instead of static keys.

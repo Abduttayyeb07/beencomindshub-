@@ -22,6 +22,45 @@ from cowork.services.conversations import ConversationService
 logger = logging.getLogger(__name__)
 
 
+def _vault():
+    from anton.core.datasources.data_vault import LocalDataVault
+    return LocalDataVault(Path(get_app_settings().connector.vault_dir))
+
+
+def _prepare_vault_payload(
+    connector_id: str,
+    slug: str,
+    method: str | None,
+    credentials: dict[str, Any],
+) -> tuple[dict[str, Any], list[str]]:
+    """Build the record to store and the list of fields that are secrets.
+
+    Two things this must get right, both of which were previously missing:
+
+    - `secure_keys` has to be recorded, or the read path has no way to know
+      which fields to mask and hands the raw credential back over the API.
+    - When editing an existing connection, a secret left untouched arrives as
+      the "keep what is stored" sentinel; it has to be resolved back to the
+      stored value instead of being written over the real credential.
+
+    `resolve_modify_merge` does both, given the fields the spec marks secret.
+    """
+    from anton.core.datasources.data_vault import resolve_modify_merge
+    from cowork.services.connectors.connections import spec_secret_fields
+
+    merged, secure_keys = resolve_modify_merge(
+        _vault(),
+        connector_id,
+        slug,
+        credentials,
+        spec_secret_keys=sorted(spec_secret_fields(connector_id, method)),
+    )
+    payload = {**merged, "_connector_id": connector_id}
+    if method:
+        payload["_method"] = method
+    return payload, secure_keys
+
+
 class ProbeHandler:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -132,13 +171,13 @@ class ProbeHandler:
             # connector against.
             if db_conversation_id is None or spec is None:
                 try:
-                    from anton.core.datasources.data_vault import LocalDataVault
-                    vault = LocalDataVault(Path(get_app_settings().connector.vault_dir))
                     slug = (name or "").strip() or f"{connector_id}-{uuid.uuid4().hex[:6]}"
-                    payload_to_save = {**credentials, "_connector_id": connector_id}
-                    if method:
-                        payload_to_save["_method"] = method
-                    vault.save(connector_id, slug, payload_to_save)
+                    payload_to_save, secure_keys = _prepare_vault_payload(
+                        connector_id, slug, method, credentials
+                    )
+                    _vault().save(
+                        connector_id, slug, payload_to_save, secure_keys=secure_keys
+                    )
                 except Exception as exc:
                     yield _delta(f"Could not save: `{exc}`.")
                     yield _push("response.completed", {
@@ -292,13 +331,13 @@ class ProbeHandler:
             saved_slug: str | None = None
             if final_outcome.status == "success":
                 try:
-                    from anton.core.datasources.data_vault import LocalDataVault
-                    vault = LocalDataVault(Path(get_app_settings().connector.vault_dir))
                     slug = (name or "").strip() or f"{connector_id}-{uuid.uuid4().hex[:6]}"
-                    payload_to_save = {**credentials, "_connector_id": connector_id}
-                    if method:
-                        payload_to_save["_method"] = method
-                    vault.save(connector_id, slug, payload_to_save)
+                    payload_to_save, secure_keys = _prepare_vault_payload(
+                        connector_id, slug, method, credentials
+                    )
+                    _vault().save(
+                        connector_id, slug, payload_to_save, secure_keys=secure_keys
+                    )
                     saved_slug = slug
                 except Exception as exc:
                     logger.exception("Vault save failed despite probe success")

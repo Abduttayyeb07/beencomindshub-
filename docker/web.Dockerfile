@@ -29,6 +29,12 @@ FROM nginx:alpine AS runtime
 LABEL org.opencontainers.image.title="cowork-web"
 
 COPY --from=builder /build/dist/renderer-web/ /usr/share/nginx/html/
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Rendered at container start by the base image's envsubst entrypoint, so the
+# API token can be supplied as an environment variable rather than baked in.
+# The filter limits substitution to COWORK_* names, leaving nginx's own
+# variables ($host, $remote_addr, …) untouched.
+COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+ENV NGINX_ENVSUBST_FILTER=COWORK_
 
 EXPOSE 80

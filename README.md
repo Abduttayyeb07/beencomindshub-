@@ -108,10 +108,14 @@ POSIX file modes and fail on Windows only.
 
 ## Security
 
-**The API has no authentication of its own.** Anyone who can reach it can use
-the agents and every saved connector credential. The Docker stack publishes the
-UI on `localhost` only and doesn't publish the API or gateway at all — keep it
-that way.
+**The API has no user accounts.** Set `COWORK_API_TOKEN` in `.env`: every
+request must then carry it, and the web container injects it for you, so the
+browser never holds it. Without it, anything able to reach the port can use the
+agents and read every saved connector credential.
+
+The Docker stack publishes the UI on `localhost` only and doesn't publish the
+API or gateway at all — keep it that way. A full review of all 119 endpoints is
+in [docs/SECURITY-AUDIT.md](docs/SECURITY-AUDIT.md).
 
 For a deployment other people can reach, use [deploy/aws/](deploy/aws/), which
 puts an OIDC login in front and gives the gateway an IAM role instead of static

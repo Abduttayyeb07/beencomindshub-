@@ -47,6 +47,9 @@ services:
       COWORK_MANAGED_PLANNING_MODEL: "planning"
       COWORK_MANAGED_CODING_MODEL: "coding"
       COWORK_ENABLED_CONNECTORS: ${COWORK_ENABLED_CONNECTORS:-slack,postgres,clickhouse,clickup,notion,redis}
+      # Shared secret the API requires on every request. The web container
+      # injects it, so the browser never holds it. Empty disables the check.
+      COWORK_API_TOKEN: ${COWORK_API_TOKEN:-}
       # Optional. Unset, the connector-vault key is generated into the volume
       # (~/.cowork/.vault.key); set it to keep the key out of the volume.
       ANTON_VAULT_KEY: ${ANTON_VAULT_KEY:-}
@@ -62,6 +65,10 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
+    environment:
+      # Injected into every proxied request as X-Cowork-Token; must match the
+      # api service's COWORK_API_TOKEN.
+      COWORK_API_TOKEN: ${COWORK_API_TOKEN:-}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:80"
     depends_on:

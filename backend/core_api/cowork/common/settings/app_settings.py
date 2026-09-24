@@ -142,6 +142,37 @@ class OAuthSettings(Settings):
 class AppSettings(Settings):
     env: str = Field(default="local", description="The environment (local, dev, prod, etc.)")  # ENV
 
+    cors_allow_origins: str = Field(
+        default="http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000",
+        validation_alias=AliasChoices("COWORK_CORS_ALLOW_ORIGINS"),
+        description=(
+            "Comma-separated browser origins allowed to call this API "
+            "cross-origin. Both supported setups serve the UI through a proxy, "
+            "so requests are same-origin and send no Origin header at all — "
+            "these are only a fallback for direct access during development. "
+            "The Electron desktop app loads from file:// and sends 'null'; add "
+            "it here if you run that. '*' restores the old allow-everything "
+            "behaviour and should not be used while the API is unauthenticated."
+        ),
+    )  # COWORK_CORS_ALLOW_ORIGINS
+
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
+
+    api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("COWORK_API_TOKEN"),
+        description=(
+            "Shared secret required on every API request, sent as the "
+            "X-Cowork-Token header (or a cowork_token cookie/query parameter "
+            "for browser-loaded assets). Empty disables the check, which is "
+            "the default so existing setups keep working. The health route and "
+            "inbound channel webhooks — which verify their own signatures — "
+            "are always exempt. Intended to be injected by the reverse proxy "
+            "serving the UI, so the browser never holds it."
+        ),
+    )  # COWORK_API_TOKEN
+
     port: int = Field(
         default=int(os.environ.get("COWORK_SERVER_PORT", os.environ.get("SERVER_PORT", 26866))),
         description="The port to run the server on"
