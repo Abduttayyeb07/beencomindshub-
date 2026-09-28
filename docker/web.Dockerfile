@@ -9,7 +9,7 @@ WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json ./
 # --ignore-scripts: skips Electron's postinstall binary download, which the
 # web build never uses.
-RUN npm ci --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
 COPY frontend/ ./
 
 # How the SPA authenticates. "none" skips the MindsHub (Keycloak) SSO login —

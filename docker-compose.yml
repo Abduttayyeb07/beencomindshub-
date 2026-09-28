@@ -34,8 +34,12 @@ services:
       test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness').status==200 else 1)\""]
       interval: 10s
       timeout: 5s
-      start_period: 30s
-      retries: 5
+      # Generous: LiteLLM registers every model in the config at boot, which on
+      # a small VPS took longer than a 30s grace period plus 5 retries — so the
+      # first `up` aborted with "dependency failed to start" on a gateway that
+      # was merely still starting.
+      start_period: 120s
+      retries: 10
     restart: unless-stopped
 
   api:
