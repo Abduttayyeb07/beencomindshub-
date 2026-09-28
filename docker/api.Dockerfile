@@ -2,19 +2,21 @@
 #
 # Built from the repo root:   docker build -f docker/api.Dockerfile .
 
+# uv comes from PyPI rather than its GHCR image: PyPI is already required to
+# build this image, and some hosts cannot reach ghcr.io at all (it refuses even
+# `docker login`), which failed the build here.
 ARG UV_VERSION=0.12.14
-
-FROM ghcr.io/astral-sh/uv:${UV_VERSION} AS uv
 
 # ─── builder ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS builder
+ARG UV_VERSION
 
 # git: hermes-agent is a git dependency in backend/core_api/pyproject.toml.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=uv /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
 
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_COMPILE_BYTECODE=1 \
@@ -33,6 +35,7 @@ RUN uv sync --frozen --no-dev --no-editable
 
 # ─── runtime ──────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
+ARG UV_VERSION
 
 LABEL org.opencontainers.image.title="cowork-api"
 
@@ -45,7 +48,8 @@ RUN apt-get update \
 
 # uv on PATH: the scratchpad provisions its per-session venvs with it
 # (anton/core/backends/local.py falls back to a slower stdlib venv without it).
-COPY --from=uv /uv /usr/local/bin/uv
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
+
 COPY --from=builder /opt/venv /opt/venv
 
 ENV PATH="/opt/venv/bin:$PATH" \
