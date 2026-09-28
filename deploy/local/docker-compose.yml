@@ -9,7 +9,9 @@
 
 services:
   model-gateway:
-    image: ghcr.io/berriai/litellm:main-stable
+    # Same image as GHCR, different registry — see the note in the root
+    # docker-compose.yml.
+    image: ${LITELLM_IMAGE:-docker.io/litellm/litellm:main-stable}
     container_name: cowork-model-gateway
     restart: unless-stopped
     command: ["--config", "/app/config.yaml", "--port", "4000"]

@@ -13,7 +13,12 @@
 
 services:
   model-gateway:
-    image: ghcr.io/berriai/litellm:main-stable
+    # Docker Hub rather than GHCR: the two publish the same image (identical
+    # digest), but GHCR returns "denied: denied" on hosts that have stale
+    # credentials cached for it, even though the image is public. Override with
+    # LITELLM_IMAGE to pin a version or switch back to
+    # ghcr.io/berriai/litellm:main-stable.
+    image: ${LITELLM_IMAGE:-docker.io/litellm/litellm:main-stable}
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     volumes:
       # Same routing policy as `npm run dev:web` (deploy/local/ROUTING.md).
