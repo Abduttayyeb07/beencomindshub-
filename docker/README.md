@@ -54,24 +54,26 @@ into the same volume (`.vault.key`) unless you set `ANTON_VAULT_KEY`. Setting it
 keeps the key out of the volume, so a copied volume alone can't be decrypted.
 **Lose the key and saved connections can't be read** — they have to be re-entered.
 
-This state is separate from a `npm run dev:web` setup, which keeps its own under
-`~/.cowork` on the host.
 
 ## Security
 
-**Set `COWORK_API_TOKEN` in `.env`.** The API has no user accounts; that token
-is what stops anything else on the machine from using it and reading every
-saved credential. The web container injects it into proxied requests, so the
-browser never holds it and you never type it. Generate one with:
+**Set `COWORK_AUTH_PASSWORD` (and optionally `COWORK_AUTH_EMAIL`) in `.env`.**
+That is the sign-in page. There is no signup and no user list: one shared
+credential, checked against the environment. Leave the password empty and the
+app is open to anyone who can reach it.
 
 ```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+python -c "import secrets; print(secrets.token_urlsafe(24))"
 ```
 
-Leaving it empty disables the check entirely.
+Signing in sets an HttpOnly session cookie, so the password isn't stored in the
+browser and page scripts can't read the session. Failed attempts are rate
+limited. `COWORK_API_TOKEN` is separate, for scripts calling the API directly.
 
-**There is still no user login.** The UI is published on localhost only, and the
-API and gateway aren't published at all — keep it that way.
+**Before exposing this beyond localhost**, serve it over HTTPS and set
+`COWORK_COOKIE_SECURE=true` — otherwise the password and session travel in
+clear text. One shared password also cannot be revoked per person or tell you
+who did what; for that, use `deploy/aws/` with OIDC.
 
 See [docs/SECURITY-AUDIT.md](../docs/SECURITY-AUDIT.md) for the full endpoint
 review.

@@ -28,10 +28,17 @@ def test_header_is_accepted(guarded):
     assert r.status_code == 200
 
 
-def test_cookie_and_query_are_accepted(guarded):
+def test_query_parameter_is_accepted(guarded):
     # Browser-loaded assets (<img>, <iframe>) cannot set request headers.
-    assert guarded.get("/api/v1/settings/", cookies={"cowork_token": TOKEN}).status_code == 200
     assert guarded.get(f"/api/v1/settings/?cowork_token={TOKEN}").status_code == 200
+
+
+def test_the_token_is_not_accepted_as_a_cookie(guarded):
+    # The browser's credential is the session cookie from signing in. Honouring
+    # the API token as a cookie too would mean a stored cookie could act as a
+    # permanent credential the user never chose to set.
+    guarded.cookies.set("cowork_token", TOKEN)
+    assert guarded.get("/api/v1/settings/").status_code == 401
 
 
 def test_a_wrong_token_is_rejected(guarded):

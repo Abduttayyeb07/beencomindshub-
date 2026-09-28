@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
         max_age=3600,
     )
 
-    _install_api_token_gate(app, settings.api_token)
+    _install_api_gate(app, settings.api_token, settings.auth_password)
 
     # Include v1 API routes
     app.include_router(v1_router)
@@ -98,49 +98,64 @@ def create_app() -> FastAPI:
     return app
 
 
-def _install_api_token_gate(app: FastAPI, token: str) -> None:
-    """Require a shared secret on every request when COWORK_API_TOKEN is set.
+def _install_api_gate(app: FastAPI, token: str, password: str) -> None:
+    """Require a signed-in session or the API token on every request.
 
     The API has no user accounts, so without this anything able to reach the
     port can read provider keys and stored connections and start agent runs.
-    Off when the token is empty, which keeps existing setups working.
+
+    Two ways in, both optional and independent:
+      - COWORK_AUTH_PASSWORD — people sign in on the UI and get a session
+        cookie (see cowork/api/v1/endpoints/auth.py);
+      - COWORK_API_TOKEN — an X-Cowork-Token header, for scripts and
+        automation that cannot sign in.
+
+    With neither set the gate is off, which keeps a localhost-only setup
+    working as before.
 
     Exempt:
       - the health route, so container healthchecks work;
+      - the sign-in routes themselves, which are how a session is obtained;
       - CORS preflights, which browsers send without custom headers;
       - inbound channel webhooks, which external services call and which
         verify their own signatures (see cowork/channels/webhooks.py).
-
-    The token is read from a header, a cookie or a query parameter: assets the
-    browser loads itself (an <img> or <iframe> pointing at an artifact) cannot
-    set headers. The reverse proxy serving the UI is expected to inject it, so
-    the browser never has to hold it.
     """
-    if not token:
+    if not token and not password:
         return
 
     import hmac
 
     from starlette.responses import JSONResponse
 
+    from cowork.common.auth import session_is_valid
+
+    open_paths = {"/api/v1/health", "/api/v1/auth/status", "/api/v1/auth/login", "/api/v1/auth/logout"}
+
     @app.middleware("http")
-    async def require_api_token(request: Request, call_next):
+    async def require_api_auth(request: Request, call_next):
         path = request.scope.get("path", "")
         exempt = (
             request.method == "OPTIONS"
-            or path.rstrip("/") == "/api/v1/health"
+            or path.rstrip("/") in open_paths
             or any(rx.match(path) for rx in getattr(app.state, "webhook_path_regexes", ()))
         )
         if not exempt:
-            supplied = (
-                request.headers.get("x-cowork-token")
-                or request.cookies.get("cowork_token")
-                or request.query_params.get("cowork_token")
-                or ""
+            # A session cookie is the browser's credential; the token is for
+            # automation. Assets the browser loads itself (an <img> or
+            # <iframe>) cannot set headers, but do send cookies.
+            authorised = password and session_is_valid(
+                request.cookies.get("cowork_session", "")
             )
-            # compare_digest: keep the comparison time independent of how much
-            # of the token a guess got right.
-            if not hmac.compare_digest(supplied, token):
+            if not authorised and token:
+                supplied = (
+                    request.headers.get("x-cowork-token")
+                    or request.query_params.get("cowork_token")
+                    or ""
+                )
+                # compare_digest: keep the comparison time independent of how
+                # much of the token a guess got right.
+                authorised = hmac.compare_digest(supplied, token)
+            if not authorised:
                 return JSONResponse({"detail": "Not authenticated"}, status_code=401)
         return await call_next(request)
 

@@ -58,42 +58,13 @@ Day-to-day commands, configuration, data and troubleshooting:
 `backend/core_api` depends on `backend/core_agent` by local path, so changes to
 the agent take effect without a release.
 
-## Local development
+## Development
 
-For working on the code with hot reload. Needs Node 22,
-[uv](https://docs.astral.sh/uv/), and Docker (for the model gateway).
-
-**1. Start the model gateway**
+Everything runs through Docker. After changing code, rebuild and restart:
 
 ```bash
-cp deploy/local/.env.example deploy/local/.env     # AWS credentials + LITELLM_MASTER_KEY
-docker compose -f deploy/local/docker-compose.yml up -d
+docker compose up -d --build
 ```
-
-**2. Point the backend at it**
-
-```bash
-cp backend/core_api/.env.example backend/core_api/.env
-# set COWORK_MANAGED_API_KEY to the same value as LITELLM_MASTER_KEY
-```
-
-**3. Skip the upstream sign-in in the dev UI**
-
-```bash
-echo "VITE_AUTH_MODE=none" > frontend/src/renderer/.env.local
-```
-
-**4. Run**
-
-```bash
-cd frontend
-npm install
-npm run dev:web
-```
-
-Open **http://localhost:5173**. `dev:web` starts the backend itself and
-reloads on changes. This keeps its state in `~/.cowork` on your machine,
-separate from the Docker stack's volume.
 
 ### Tests
 
@@ -108,10 +79,15 @@ POSIX file modes and fail on Windows only.
 
 ## Security
 
-**The API has no user accounts.** Set `COWORK_API_TOKEN` in `.env`: every
-request must then carry it, and the web container injects it for you, so the
-browser never holds it. Without it, anything able to reach the port can use the
+**Set `COWORK_AUTH_PASSWORD` in `.env`** to turn on the sign-in page. There is
+no signup: one shared email and password, checked against the environment.
+Signing in sets an HttpOnly session cookie, and failed attempts are rate
+limited. With no password set, anything able to reach the port can use the
 agents and read every saved connector credential.
+
+Serving it beyond localhost means HTTPS plus `COWORK_COOKIE_SECURE=true`. A
+shared password can't be revoked per person or attributed to anyone — for that
+use [deploy/aws/](deploy/aws/), which puts OIDC in front.
 
 The Docker stack publishes the UI on `localhost` only and doesn't publish the
 API or gateway at all — keep it that way. A full review of all 119 endpoints is

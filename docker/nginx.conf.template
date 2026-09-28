@@ -13,14 +13,17 @@ server {
         proxy_pass http://api:26866;
         proxy_http_version 1.1;
 
-        # The API has no user accounts, so it authenticates callers with a
-        # shared secret. Injecting it here keeps it out of the browser: a page
-        # on another origin can reach the API only through this proxy, and CORS
-        # already blocks it from reading the response. Empty when
-        # COWORK_API_TOKEN is unset, which leaves the check disabled.
-        proxy_set_header X-Cowork-Token "${COWORK_API_TOKEN}";
+        # No credential is injected here on purpose. The proxy used to add the
+        # API token to every request, which would make the sign-in page
+        # pointless: anyone who could load this page would already be
+        # authenticated. The browser authenticates with the session cookie it
+        # gets from signing in; the API token stays for scripts that call the
+        # API directly.
 
-        proxy_set_header Host $host;
+        # $http_host, not $host: $host drops the port, so FastAPI's
+        # trailing-slash redirects came back as http://localhost/... and the
+        # browser followed them to port 80, where nothing is listening.
+        proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header Connection "";

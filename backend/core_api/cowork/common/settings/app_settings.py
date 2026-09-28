@@ -159,6 +159,45 @@ class AppSettings(Settings):
     def cors_origins(self) -> list[str]:
         return [o.strip() for o in self.cors_allow_origins.split(",") if o.strip()]
 
+    auth_email: str = Field(
+        default="",
+        validation_alias=AliasChoices("COWORK_AUTH_EMAIL"),
+        description=(
+            "Email accepted at sign-in, compared case-insensitively. Empty "
+            "means the sign-in page asks for the password only. Note this is a "
+            "second shared constant rather than a user account — it does not "
+            "make the sign-in meaningfully harder to guess."
+        ),
+    )  # COWORK_AUTH_EMAIL
+
+    auth_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("COWORK_AUTH_PASSWORD"),
+        description=(
+            "Shared password for the sign-in page. Empty means no sign-in is "
+            "required, which is only safe when nothing but you can reach the "
+            "port. There are no user accounts: everyone shares this password, "
+            "so it cannot be revoked per person or attributed to anyone."
+        ),
+    )  # COWORK_AUTH_PASSWORD
+
+    session_ttl_hours: int = Field(
+        default=168,
+        validation_alias=AliasChoices("COWORK_SESSION_TTL_HOURS"),
+        description="How long a sign-in lasts before the password is asked for again.",
+    )  # COWORK_SESSION_TTL_HOURS
+
+    cookie_secure: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("COWORK_COOKIE_SECURE"),
+        description=(
+            "Mark the session cookie Secure so browsers only send it over "
+            "HTTPS. Turn this on whenever the app is reachable over anything "
+            "but localhost; leaving it off over the open internet means the "
+            "session can be stolen in transit."
+        ),
+    )  # COWORK_COOKIE_SECURE
+
     api_token: str = Field(
         default="",
         validation_alias=AliasChoices("COWORK_API_TOKEN"),

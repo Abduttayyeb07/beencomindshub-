@@ -30,6 +30,7 @@ from cowork.api.v1.endpoints.connectors import (
     submissions,
 )
 from cowork.api.v1.endpoints import (
+    auth,
     channels,
     conversations,
     files,
@@ -56,6 +57,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 # ── Canonical routes ─────────────────────────────────────────────────
 api_router.include_router(health.router, prefix="/health", tags=["health"])
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(specs.router, prefix="/connectors/specs", tags=["connectors"])
 api_router.include_router(submissions.router, prefix="/connectors/submissions", tags=["connectors"])
 api_router.include_router(connections.router, prefix="/connectors/connections", tags=["connectors"])
